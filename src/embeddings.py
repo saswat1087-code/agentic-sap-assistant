@@ -13,9 +13,9 @@ class GeminiEmbedderWrapper:
             try:
                 # Configure the native Google GenAI SDK directly
                 genai.configure(api_key=self.api_key)
-                # This model natively supports v1beta API routing paths flawlessly
-                self.model_name = "models/gemini-embedding-2-flash"
-                logger.info("✅ Native Google GenAI Multimodal Embeddings client configured successfully.")
+                # Using the exact absolute path identifier with the native SDK bypasses translation layers
+                self.model_name = "models/text-embedding-004"
+                logger.info("✅ Native Google GenAI Embeddings client configured successfully.")
             except Exception as e:
                 logger.error(f"❌ Failed to configure native Google GenAI client: {e}")
                 self.model_name = None
@@ -40,12 +40,10 @@ class GeminiEmbedderWrapper:
             response = genai.embed_content(
                 model=self.model_name,
                 content=str(text),
-                task_type="retrieval_document",
-                # Hard-constrain output dimension to perfectly fit your pgvector table schema layout
-                output_dimensionality=768
+                task_type="retrieval_document"
             )
-            # Extract the raw list of floats from the native multi-row array mapping layer
-            return response['embedding'][0]
+            # Extract the raw vector list of floats from the response payload array
+            return response['embedding']
         except Exception as e:
             logger.error(f"Error executing native vector embedding generation: {e}")
             raise e
