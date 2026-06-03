@@ -17,17 +17,17 @@ class GeminiEmbedderWrapper:
             logger.warning("⚠️ WARNING: Neither GEMINI_API_KEY nor GOOGLE_API_KEY was found in environment variables.")
             self.url = None
 
-    def generate(self, text: str) -> list:
+    def generate(self, text: str) -> dict:
         """
         Generates a vector embedding array for the provided string context block.
-        Matches the interface expected by the core Streamlit ingest loops.
+        Returns a dictionary structure to perfectly satisfy streamlit_app.py expectations.
         """
         if not self.url:
             raise ValueError("Embedding client is not configured. Please verify your GEMINI_API_KEY configuration.")
         
+        # Return a zeroed fallback array (768 dimensions) wrapped in the expected key structure if vacant
         if not text or not str(text).strip():
-            # Return a zeroed fallback array (768 dimensions) if string context is completely vacant
-            return [0.0] * 768
+            return {"embedding": [0.0] * 768}
             
         try:
             # Construct the exact raw JSON request payload expected by the Google v1 REST API
@@ -48,9 +48,11 @@ class GeminiEmbedderWrapper:
                 raise ValueError(f"Google API Error: {response.text}")
                 
             response_json = response.json()
+            raw_values = response_json["embedding"]["values"]
             
-            # Extract the raw flat list of floats directly from the response body mapping layer
-            return response_json["embedding"]["values"]
+            # CRITICAL FIX: Wrap the list of floats inside a dictionary under the 'embedding' key
+            # This eliminates the KeyError on line 193 of streamlit_app.py
+            return {"embedding": raw_values}
             
         except Exception as e:
             logger.error(f"Error executing raw REST vector embedding generation: {e}")
