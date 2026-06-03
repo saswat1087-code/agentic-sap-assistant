@@ -11,7 +11,7 @@ sqlalchemy==2.0.23
 
 # AI/ML - Compatible LangChain ecosystem
 langchain==0.2.0
-langchain-core==0.2.0
+langchain-core==0.2.5
 langchain-google-vertexai==1.0.5
 google-cloud-aiplatform==1.71.1
 
