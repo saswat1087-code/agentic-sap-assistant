@@ -287,8 +287,6 @@ with tab2:
                             st.session_state.import_status = f"Imported {success_count} incidents successfully!"
                             st.balloons()
                             st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error reading Excel file: {str(e)}")
         except Exception as e:
             st.error(f"❌ Error reading Excel file: {str(e)}")
         
