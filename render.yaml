@@ -2,19 +2,15 @@ services:
   - type: web
     name: agentic-sap-assistant
     runtime: python
-    repo: https://github.com/YOUR_USERNAME/agentic-sap-assistant
+    repo: https://github.com/saswat1087-code/agentic-sap-assistant
     plan: free
     branch: main
     buildCommand: pip install -r requirements.txt
     startCommand: streamlit run app/streamlit_app.py --server.port $PORT --server.address 0.0.0.0
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.10.0
       - key: SUPABASE_URL
-        sync: false
+        value: https://neohhxlwzgzrajlhswac.supabase.co
       - key: SUPABASE_KEY
-        sync: false
-      - key: GEMINI_PROJECT_ID
-        sync: false
-      - key: GOOGLE_APPLICATION_CREDENTIALS
-        sync: false
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lb2hoeGx3emd6cmFqbGhzd2FjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0Nzk5MzgsImV4cCI6MjA5NjA1NTkzOH0.NMaIMovPYjzklPFgoaX2tw6Jbo6Msx-OVZKF0ouUOlw
+      - key: PYTHON_VERSION
+        value: 3.11.10
