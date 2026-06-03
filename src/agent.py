@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class SAPAgentWrapper:
     def __init__(self):
-        # Dynamically pull the standard API key
+        # Dynamically pull the standard API key from Render's environment variables
         self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         
         if not self.api_key:
@@ -17,13 +17,13 @@ class SAPAgentWrapper:
             return
 
         try:
-            # Initialize using the standard GenAI library that matches your requirements.txt matrix
+            # Upgrade configuration target to the production gemini-3.5-flash reasoning engine
             self.llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-pro",
+                model="gemini-3.5-flash",
                 google_api_key=self.api_key,
                 temperature=0.0
             )
-            logger.info("✅ ChatGoogleGenerativeAI (Gemini 1.5 Pro) initialized successfully.")
+            logger.info("✅ ChatGoogleGenerativeAI (Gemini 3.5 Flash) initialized successfully.")
             
             # Reconstruct the agent's prompt blueprint
             self.prompt = ChatPromptTemplate.from_messages([
@@ -34,11 +34,11 @@ class SAPAgentWrapper:
                 MessagesPlaceholder(variable_name="agent_scratchpad"),
             ])
             
-            # Build the core execution runtime block (Pass an empty list if tools aren't loaded yet)
+            # Build the core execution runtime block
             self.tools = [] 
             self.agent = create_openai_tools_agent(self.llm, self.tools, self.prompt)
             self.agent_executor = AgentExecutor(agent=self.agent, tools=self.tools, verbose=True)
-            logger.info("✅ SAP Agent Executor compiled cleanly.")
+            logger.info("✅ SAP Agent Executor compiled cleanly using Gemini 3.5.")
             
         except Exception as e:
             logger.error(f"❌ Failed to create SAP Agent: {e}")
