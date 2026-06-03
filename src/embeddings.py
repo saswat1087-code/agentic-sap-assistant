@@ -10,9 +10,9 @@ class GeminiEmbedderWrapper:
         self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         
         if self.api_key:
-            # Crucial: Target stable /v1 path without the models/ prefix inside the URI route
-            self.url = f"https://generativelanguage.googleapis.com/v1/models/text-embedding-004:embedContent?key={self.api_key}"
-            logger.info("✅ Native REST Google GenAI Embeddings client configured successfully for v1 endpoint.")
+            # Targeted to the modern mainline gemini-embedding-001 endpoint path
+            self.url = f"https://generativelanguage.googleapis.com/v1/models/gemini-embedding-001:embedContent?key={self.api_key}"
+            logger.info("✅ Native REST Google GenAI Embeddings client configured for gemini-embedding-001.")
         else:
             logger.warning("⚠️ WARNING: Neither GEMINI_API_KEY nor GOOGLE_API_KEY was found in environment variables.")
             self.url = None
@@ -32,7 +32,7 @@ class GeminiEmbedderWrapper:
         try:
             # Construct the exact raw JSON request payload expected by the Google v1 REST API
             payload = {
-                "model": "models/text-embedding-004",
+                "model": "models/gemini-embedding-001",
                 "content": {
                     "parts": [{
                         "text": str(text)
