@@ -1,3 +1,8 @@
+"""
+SAP Agent module using LangChain and Gemini
+Handles error resolution using AI and knowledge base
+"""
+
 from typing import Dict, Any, List
 import logging
 from langchain_google_vertexai import ChatVertexAI
@@ -11,15 +16,24 @@ from src.parsers import parser
 logger = logging.getLogger(__name__)
 
 class SAPAgent:
+    """Agentic AI assistant for SAP error resolution"""
+    
     def __init__(self):
-        self.llm = ChatVertexAI(
-            model=settings.gemini_model,
-            project=settings.gemini_project_id,
-            location=settings.gemini_location,
-            temperature=0.3,
-            max_output_tokens=2048
-        )
+        """Initialize the SAP Agent with Gemini model"""
+        try:
+            self.llm = ChatVertexAI(
+                model=settings.gemini_model,
+                project=settings.gemini_project_id,
+                location=settings.gemini_location,
+                temperature=0.3,
+                max_output_tokens=2048
+            )
+            logger.info(f"✅ LLM initialized: {settings.gemini_model}")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize LLM: {e}")
+            raise
         
+        # Define tools for the agent
         tools = [
             Tool(
                 name="Search_SAP_Knowledge_Base",
@@ -28,6 +42,7 @@ class SAPAgent:
             )
         ]
         
+        # Create the prompt template
         prompt = PromptTemplate.from_template("""
 You are an expert SAP support specialist with deep knowledge of EWM, MM, QM, PP, AMM, and MFG modules.
 
@@ -52,19 +67,29 @@ If no exact match exists in the knowledge base, provide the best possible soluti
 Be specific, practical, and safety-conscious.
 """)
         
+        # Create the agent
         self.agent = create_react_agent(self.llm, tools, prompt)
         self.agent_executor = AgentExecutor(
             agent=self.agent,
             tools=tools,
             verbose=True,
             max_iterations=5,
-            handle_parsing_errors=True
+            handle_parsing_errors=True,
+            return_intermediate_steps=False
         )
         
-        logger.info("SAP Agent initialized")
+        logger.info("✅ SAP Agent initialized successfully")
     
     def search_knowledge_base(self, query: str) -> str:
-        """Search the knowledge base and return formatted results"""
+        """
+        Search the knowledge base and return formatted results
+        
+        Args:
+            query: Search query string
+            
+        Returns:
+            Formatted string with search results
+        """
         try:
             # Generate embedding for query
             query_embedding = embedder.generate(query)
@@ -89,18 +114,30 @@ Be specific, practical, and safety-conscious.
 """)
             
             return "\n".join(formatted_results)
+            
         except Exception as e:
             logger.error(f"Error searching knowledge base: {e}")
             return "Error searching knowledge base. Please try again."
     
     def resolve_error(self, error_message: str, module_filter: str = "All") -> Dict[str, Any]:
-        """Resolve an SAP error using agentic AI"""
+        """
+        Resolve an SAP error using agentic AI
+        
+        Args:
+            error_message: The error message to resolve
+            module_filter: Optional module filter (EWM, MM, QM, PP, AMM, MFG, or All)
+            
+        Returns:
+            Dictionary with resolution result
+        """
         try:
             # First, try to detect module if not specified
             if module_filter == "All":
                 detected_module = parser.extract_module(error_message)
                 module_filter = detected_module
+                logger.info(f"Detected module: {module_filter}")
             
+            # Invoke the agent
             response = self.agent_executor.invoke({
                 "input": f"Module filter: {module_filter}\nError message: {error_message}",
                 "module_filter": module_filter,
@@ -112,6 +149,7 @@ Be specific, practical, and safety-conscious.
                 "response": response.get("output", ""),
                 "module": module_filter
             }
+            
         except Exception as e:
             logger.error(f"Error resolving error: {e}")
             return {
@@ -121,8 +159,24 @@ Be specific, practical, and safety-conscious.
             }
     
     def get_incident_details(self, inc_number: str) -> Dict[str, Any]:
-        """Get detailed information about a specific incident"""
+        """
+        Get detailed information about a specific incident
+        
+        Args:
+            inc_number: Incident number (e.g., INC22521394)
+            
+        Returns:
+            Incident details or None
+        """
         return db.get_by_inc_number(inc_number)
 
-# Singleton instance
-agent = SAPAgent()
+
+# ==================== SINGLETON INSTANCE ====================
+
+# Create a single instance to be used across the application
+try:
+    agent = SAPAgent()
+    logger.info("✅ SAP Agent ready")
+except Exception as e:
+    logger.error(f"❌ Failed to create SAP Agent: {e}")
+    agent = None
