@@ -9,9 +9,11 @@ pgvector==0.2.5
 psycopg2-binary==2.9.9
 sqlalchemy==2.0.23
 
-# AI/ML - Using a compatible Google Cloud version
-google-cloud-aiplatform>=1.71.1
+# AI/ML - LangChain with compatible versions
+langchain==0.1.0
+langchain-core==0.1.0
 langchain-google-vertexai==0.0.6
+google-cloud-aiplatform==1.71.1
 
 # Data processing
 pandas==2.1.4
