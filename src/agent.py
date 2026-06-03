@@ -5,7 +5,7 @@ Handles error resolution using AI and knowledge base
 
 from typing import Dict, Any, List
 import logging
-from langchain_google_vertexai import ChatVertexAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents import Tool, AgentExecutor, create_react_agent
 from langchain.prompts import PromptTemplate
 from src.config import settings
