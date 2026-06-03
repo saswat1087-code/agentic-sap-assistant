@@ -1,6 +1,6 @@
 import os
 import logging
-import google.generativeai as genai
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -10,25 +10,19 @@ class GeminiEmbedderWrapper:
         self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         
         if self.api_key:
-            try:
-                # Configure the native Google GenAI SDK directly
-                genai.configure(api_key=self.api_key)
-                # This stable model identifier routes flawlessly over legacy /v1beta URLs
-                self.model_name = "models/embedding-001"
-                logger.info("✅ Native Google GenAI Embeddings client configured successfully.")
-            except Exception as e:
-                logger.error(f"❌ Failed to configure native Google GenAI client: {e}")
-                self.model_name = None
+            # Directly target Google's stable production v1 API URL route
+            self.url = f"https://generativelanguage.googleapis.com/v1/models/text-embedding-004:embedContent?key={self.api_key}"
+            logger.info("✅ Native REST Google GenAI Embeddings client configured successfully for v1 endpoint.")
         else:
             logger.warning("⚠️ WARNING: Neither GEMINI_API_KEY nor GOOGLE_API_KEY was found in environment variables.")
-            self.model_name = None
+            self.url = None
 
     def generate(self, text: str) -> list:
         """
         Generates a vector embedding array for the provided string context block.
         Matches the interface expected by the core Streamlit ingest loops.
         """
-        if not self.model_name:
+        if not self.url:
             raise ValueError("Embedding client is not configured. Please verify your GEMINI_API_KEY configuration.")
         
         if not text or not str(text).strip():
@@ -36,17 +30,30 @@ class GeminiEmbedderWrapper:
             return [0.0] * 768
             
         try:
-            # Call the native SDK embedding generation function directly
-            response = genai.embed_content(
-                model=self.model_name,
-                content=str(text),
-                task_type="retrieval_document"
-            )
-            # Extract the raw list of floats from the nested array structure [0] 
-            # to keep it perfectly compatible with pgvector/Supabase ingestion expectations
-            return response['embedding'][0]
+            # Construct the exact raw JSON request payload expected by the Google v1 REST API
+            payload = {
+                "model": "models/text-embedding-004",
+                "content": {
+                    "parts": [{
+                        "text": str(text)
+                    }]
+                }
+            }
+            
+            response = requests.post(self.url, json=payload, headers={"Content-Type": "application/json"})
+            
+            # Handle standard error status codes explicitly
+            if response.status_code != 200:
+                logger.error(f"Google API returned error status {response.status_code}: {response.text}")
+                raise ValueError(f"Google API Error: {response.text}")
+                
+            response_json = response.json()
+            
+            # Extract the raw flat list of floats directly from the response body mapping layer
+            return response_json["embedding"]["values"]
+            
         except Exception as e:
-            logger.error(f"Error executing native vector embedding generation: {e}")
+            logger.error(f"Error executing raw REST vector embedding generation: {e}")
             raise e
 
 # Instantiate the singleton instance to be consumed across the application stack
