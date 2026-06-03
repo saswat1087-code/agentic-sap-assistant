@@ -9,9 +9,8 @@ pgvector==0.2.5
 psycopg2-binary==2.9.9
 sqlalchemy==2.0.23
 
-# AI/ML - Minimized to avoid dependency conflicts
-google-cloud-aiplatform==1.38.0
-vertexai==1.71.1
+# AI/ML - Using a compatible Google Cloud version
+google-cloud-aiplatform>=1.71.1
 langchain-google-vertexai==0.0.6
 
 # Data processing
