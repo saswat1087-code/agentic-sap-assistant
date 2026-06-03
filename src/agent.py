@@ -27,12 +27,17 @@ def query_sap_knowledge_base(error_message: str, module_filter: str = "All") -> 
     try:
         logger.info(f"🤖 Tool Execution: Querying local DB for error: '{error_message}' (Filter: {module_filter})")
         
-        # 1. Generate the embedding vector dictionary payload using our direct REST wrapper
+        # 1. Generate the embedding vector payload using our direct REST wrapper
         embedding_response = embedder.generate(error_message)
-        raw_vector = embedding_response.get("embedding")
         
-        if not raw_vector:
-            return "Could not generate vector embedding for the search query."
+        # Safe extraction check: Handles both wrapped dictionary and flat list return formats smoothly
+        if isinstance(embedding_response, dict):
+            raw_vector = embedding_response.get("embedding")
+        else:
+            raw_vector = embedding_response
+            
+        if not raw_vector or not isinstance(raw_vector, list):
+            return "Could not generate valid vector embedding for the search query."
             
         # 2. Run the vector similarity match RPC function against Supabase (table: sap_kb)
         matches = db.search_similar(embedding=raw_vector, module_filter=module_filter)
