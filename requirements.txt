@@ -24,6 +24,7 @@ numpy==1.24.3
 streamlit==1.29.0
 
 # Utilities
+beautifulsoup4>=4.12.0
 tiktoken==0.5.2
 tenacity==8.2.3
 click==8.1.7
