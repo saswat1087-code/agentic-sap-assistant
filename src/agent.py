@@ -18,13 +18,13 @@ class SAPAgentWrapper:
             return
 
         try:
-            # Upgrade configuration target to the production gemini-3.5-flash reasoning engine
+            # Using the highly optimized gemini-2.5-flash token ensures immediate compatibility with your SDK version
             self.llm = ChatGoogleGenerativeAI(
-                model="gemini-3.5-flash",
+                model="gemini-2.5-flash",
                 google_api_key=self.api_key,
                 temperature=0.0
             )
-            logger.info("✅ ChatGoogleGenerativeAI (Gemini 3.5 Flash) initialized successfully.")
+            logger.info("✅ ChatGoogleGenerativeAI (Gemini 2.5 Flash) initialized successfully.")
             
             # Reconstruct the agent's prompt blueprint
             self.prompt = ChatPromptTemplate.from_messages([
@@ -39,7 +39,7 @@ class SAPAgentWrapper:
             self.tools = [] 
             self.agent = create_openai_tools_agent(self.llm, self.tools, self.prompt)
             self.agent_executor = AgentExecutor(agent=self.agent, tools=self.tools, verbose=True)
-            logger.info("✅ SAP Agent Executor compiled cleanly using Gemini 3.5 with proper v0.2 imports.")
+            logger.info("✅ SAP Agent Executor compiled cleanly using Gemini 2.5 Flash.")
             
         except Exception as e:
             logger.error(f"❌ Failed to create SAP Agent: {e}")
