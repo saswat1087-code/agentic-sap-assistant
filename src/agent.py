@@ -1,182 +1,67 @@
-"""
-SAP Agent module using LangChain and Gemini
-Handles error resolution using AI and knowledge base
-"""
-
-from typing import Dict, Any, List
+import os
 import logging
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import Tool, AgentExecutor, create_react_agent
-from langchain.prompts import PromptTemplate
-from src.config import settings
-from src.database import db
-from src.embeddings import embedder
-from src.parsers import parser
+from langchain.agents import AgentExecutor, create_openai_tools_agent
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 logger = logging.getLogger(__name__)
 
-class SAPAgent:
-    """Agentic AI assistant for SAP error resolution"""
-    
+class SAPAgentWrapper:
     def __init__(self):
-        """Initialize the SAP Agent with Gemini model"""
+        # Dynamically pull the standard API key
+        self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        
+        if not self.api_key:
+            logger.error("❌ Failed to initialize LLM: No Gemini API Key found in environment variables.")
+            self.agent_executor = None
+            return
+
         try:
-            self.llm = ChatVertexAI(
-                model=settings.gemini_model,
-                project=settings.gemini_project_id,
-                location=settings.gemini_location,
-                temperature=0.3,
-                max_output_tokens=2048
+            # Initialize using the standard GenAI library that matches your requirements.txt matrix
+            self.llm = ChatGoogleGenerativeAI(
+                model="gemini-1.5-pro",
+                google_api_key=self.api_key,
+                temperature=0.0
             )
-            logger.info(f"✅ LLM initialized: {settings.gemini_model}")
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize LLM: {e}")
-            raise
-        
-        # Define tools for the agent
-        tools = [
-            Tool(
-                name="Search_SAP_Knowledge_Base",
-                func=self.search_knowledge_base,
-                description="Search historical SAP incidents for similar errors and resolutions"
-            )
-        ]
-        
-        # Create the prompt template
-        prompt = PromptTemplate.from_template("""
-You are an expert SAP support specialist with deep knowledge of EWM, MM, QM, PP, AMM, and MFG modules.
-
-## User Query
-Module filter: {module_filter}
-Error message: {error_message}
-
-## Retrieved Knowledge
-Use the tool to search for similar past incidents.
-{tool_output}
-
-## Your Task
-Based on the retrieved knowledge and your expertise, provide:
-
-1. **Identified SAP Module**: (EWM, MM, QM, PP, AMM, or MFG)
-2. **Root Cause Analysis**: Explain why this error occurs
-3. **Step-by-Step Resolution**: Clear, actionable steps including transaction codes if applicable
-4. **Prevention Tips**: How to avoid this issue in the future
-
-If no exact match exists in the knowledge base, provide the best possible solution based on similar patterns or standard SAP best practices.
-
-Be specific, practical, and safety-conscious.
-""")
-        
-        # Create the agent
-        self.agent = create_react_agent(self.llm, tools, prompt)
-        self.agent_executor = AgentExecutor(
-            agent=self.agent,
-            tools=tools,
-            verbose=True,
-            max_iterations=5,
-            handle_parsing_errors=True,
-            return_intermediate_steps=False
-        )
-        
-        logger.info("✅ SAP Agent initialized successfully")
-    
-    def search_knowledge_base(self, query: str) -> str:
-        """
-        Search the knowledge base and return formatted results
-        
-        Args:
-            query: Search query string
+            logger.info("✅ ChatGoogleGenerativeAI (Gemini 1.5 Pro) initialized successfully.")
             
-        Returns:
-            Formatted string with search results
-        """
-        try:
-            # Generate embedding for query
-            query_embedding = embedder.generate(query)
+            # Reconstruct the agent's prompt blueprint
+            self.prompt = ChatPromptTemplate.from_messages([
+                ("system", "You are an expert SAP technical assistant specializing in EWM, MM, QM, PP, AMM, and MFG modules. "
+                           "Use the provided database context to give precise, actionable resolution steps for errors."),
+                MessagesPlaceholder(variable_name="chat_history", optional=True),
+                ("human", "{input}"),
+                MessagesPlaceholder(variable_name="agent_scratchpad"),
+            ])
             
-            # Search similar incidents
-            results = db.search_similar(query_embedding)
-            
-            if not results:
-                return "No similar incidents found in the knowledge base."
-            
-            # Format results
-            formatted_results = []
-            for idx, result in enumerate(results[:3], 1):
-                formatted_results.append(f"""
-### Similar Incident {idx}
-- **Incident**: {result.get('inc_number', 'N/A')}
-- **Module**: {result.get('module', 'Unknown')}
-- **Error**: {result.get('error_text', 'N/A')[:200]}
-- **Root Cause**: {result.get('root_cause', 'N/A')[:300]}
-- **Resolution**: {result.get('resolution', 'N/A')[:400]}
-- **Similarity Score**: {result.get('similarity', 0):.2%}
-""")
-            
-            return "\n".join(formatted_results)
+            # Build the core execution runtime block (Pass an empty list if tools aren't loaded yet)
+            self.tools = [] 
+            self.agent = create_openai_tools_agent(self.llm, self.tools, self.prompt)
+            self.agent_executor = AgentExecutor(agent=self.agent, tools=self.tools, verbose=True)
+            logger.info("✅ SAP Agent Executor compiled cleanly.")
             
         except Exception as e:
-            logger.error(f"Error searching knowledge base: {e}")
-            return "Error searching knowledge base. Please try again."
-    
-    def resolve_error(self, error_message: str, module_filter: str = "All") -> Dict[str, Any]:
+            logger.error(f"❌ Failed to create SAP Agent: {e}")
+            self.agent_executor = None
+
+    def resolve_error(self, error_message: str, module_filter: str = "All") -> dict:
         """
-        Resolve an SAP error using agentic AI
+        Executes the agent executor pipeline to evaluate and fix the incoming error message.
+        """
+        if not self.agent_executor:
+            return {"success": False, "error": "Agent architecture runtime is uninitialized."}
         
-        Args:
-            error_message: The error message to resolve
-            module_filter: Optional module filter (EWM, MM, QM, PP, AMM, MFG, or All)
-            
-        Returns:
-            Dictionary with resolution result
-        """
         try:
-            # First, try to detect module if not specified
-            if module_filter == "All":
-                detected_module = parser.extract_module(error_message)
-                module_filter = detected_module
-                logger.info(f"Detected module: {module_filter}")
-            
-            # Invoke the agent
-            response = self.agent_executor.invoke({
-                "input": f"Module filter: {module_filter}\nError message: {error_message}",
-                "module_filter": module_filter,
-                "error_message": error_message
-            })
-            
+            input_context = f"Context Module Filter: {module_filter}\nIncoming SAP Error: {error_message}"
+            response = self.agent_executor.invoke({"input": input_context})
             return {
                 "success": True,
-                "response": response.get("output", ""),
-                "module": module_filter
+                "module": module_filter,
+                "response": response.get("output", "No response text generated.")
             }
-            
         except Exception as e:
-            logger.error(f"Error resolving error: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "response": "Unable to resolve the error. Please check your input and try again."
-            }
-    
-    def get_incident_details(self, inc_number: str) -> Dict[str, Any]:
-        """
-        Get detailed information about a specific incident
-        
-        Args:
-            inc_number: Incident number (e.g., INC22521394)
-            
-        Returns:
-            Incident details or None
-        """
-        return db.get_by_inc_number(inc_number)
+            logger.error(f"Error encountered during agent execution: {e}")
+            return {"success": False, "error": str(e)}
 
-
-# ==================== SINGLETON INSTANCE ====================
-
-# Create a single instance to be used across the application
-try:
-    agent = SAPAgent()
-    logger.info("✅ SAP Agent ready")
-except Exception as e:
-    logger.error(f"❌ Failed to create SAP Agent: {e}")
-    agent = None
+# Instantiate the singleton instance for use by streamlit_app.py
+agent = SAPAgentWrapper()
