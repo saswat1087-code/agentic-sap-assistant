@@ -11,9 +11,9 @@ class GeminiEmbedderWrapper:
         
         if self.api_key:
             try:
-                # Initialize the modern native Google GenAI Embeddings client
+                # Initialize using the strict full path string required by the SDK batch requests
                 self.client = GoogleGenerativeAIEmbeddings(
-                    model="text-embedding-004",
+                    model="models/text-embedding-004",
                     google_api_key=self.api_key
                 )
                 logger.info("✅ Gemini Embeddings client initialized successfully.")
@@ -33,7 +33,7 @@ class GeminiEmbedderWrapper:
             raise ValueError("Embedding client is not initialized. Please verify your GEMINI_API_KEY configuration.")
         
         if not text or not str(text).strip():
-            # Return a zeroed fallback array if string context is completely vacant
+            # Return a zeroed fallback array (768 dimensions) if string context is completely vacant
             return [0.0] * 768
             
         try:
