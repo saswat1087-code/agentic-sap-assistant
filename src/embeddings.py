@@ -11,9 +11,9 @@ class GeminiEmbedderWrapper:
         
         if self.api_key:
             try:
-                # Passing the raw model name string clears internal SDK routing issues
+                # Initializing with the prefix-free model identifier resolves the unexpected format error
                 self.client = GoogleGenerativeAIEmbeddings(
-                    model="embedding-001",
+                    model="text-embedding-004",
                     google_api_key=self.api_key
                 )
                 logger.info("✅ Gemini Embeddings client initialized successfully.")
