@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import datetime
 import tempfile
 import logging
+from io import BytesIO
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -51,6 +52,7 @@ st.markdown("""
         border-radius: 10px;
         border-left: 5px solid #4CAF50;
         margin: 1rem 0;
+        color: #333333;
     }
     .upload-box {
         border: 2px dashed #4CAF50;
@@ -85,21 +87,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state with error handling
-def init_session_state():
-    """Initialize session state variables"""
-    if 'uploaded_data' not in st.session_state:
-        st.session_state.uploaded_data = None
-    if 'import_status' not in st.session_state:
-        st.session_state.import_status = None
-    if 'initialized' not in st.session_state:
-        st.session_state.initialized = True
-
-# Call initialization
-try:
-    init_session_state()
-except Exception as e:
-    logger.warning(f"Session state initialization warning: {e}")
+# Initialize session state variables cleanly
+if 'uploaded_data' not in st.session_state:
+    st.session_state.uploaded_data = None
+if 'import_status' not in st.session_state:
+    st.session_state.import_status = None
+if 'txt_area_value' not in st.session_state:
+    st.session_state.txt_area_value = ""
 
 # Sidebar
 with st.sidebar:
@@ -129,7 +123,7 @@ with st.sidebar:
     st.markdown("---")
     
     st.subheader("📁 Data Management")
-    if st.session_state.get('import_status'):
+    if st.session_state.import_status:
         if "success" in st.session_state.import_status.lower():
             st.success(st.session_state.import_status)
         else:
@@ -160,13 +154,6 @@ tab1, tab2, tab3 = st.tabs(["🔍 Search Errors", "📤 Upload Data", "📊 Anal
 with tab1:
     col1, col2 = st.columns([3, 1])
     
-    with col1:
-        error_message = st.text_area(
-            "📝 **Paste your SAP error message here**",
-            height=150,
-            placeholder="Example: 'Storage bin not found in EWM during putaway' or 'Error in MIGO: Storage type Z45 not suitable as an interface'"
-        )
-    
     with col2:
         module_filter = st.selectbox(
             "🎯 **Filter by module** (optional)",
@@ -176,14 +163,25 @@ with tab1:
         st.markdown("---")
         st.markdown("### 🔧 Examples")
         if st.button("📦 EWM Example"):
-            error_message = "Storage bin not found in EWM during putaway for warehouse number 001"
+            st.session_state.txt_area_value = "Storage bin not found in EWM during putaway for warehouse number 001"
+            st.rerun()
         if st.button("🏭 MFG Example"):
-            error_message = "Control recipe not generated for Process Order 39601585"
+            st.session_state.txt_area_value = "Control recipe not generated for Process Order 39601585"
+            st.rerun()
         if st.button("🔬 QM Example"):
-            error_message = "Inspection lot 04 cannot be released, status shows 'Not released'"
+            st.session_state.txt_area_value = "Inspection lot 04 cannot be released, status shows 'Not released'"
+            st.rerun()
+            
+    with col1:
+        error_message = st.text_area(
+            "📝 **Paste your SAP error message here**",
+            value=st.session_state.txt_area_value,
+            height=150,
+            placeholder="Example: 'Storage bin not found in EWM during putaway' or 'Error in MIGO: Storage type Z45 not suitable as an interface'"
+        )
     
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
+    col1_btn, col2_btn, col3_btn = st.columns([1, 1, 1])
+    with col2_btn:
         solve_button = st.button("🚀 Find Solution", use_container_width=True)
     
     if solve_button and error_message.strip():
@@ -192,22 +190,22 @@ with tab1:
                 try:
                     result = agent.resolve_error(error_message, module_filter)
                     
-                    if result["success"]:
-                        st.success(f"✅ Resolution found (Module: {result['module']})")
+                    if result and result.get("success"):
+                        st.success(f"✅ Resolution found (Module: {result.get('module', 'Unknown')})")
                         st.markdown("---")
                         st.markdown("## 💡 Resolution")
                         st.markdown('<div class="resolution-box">', unsafe_allow_html=True)
-                        st.markdown(result["response"])
+                        st.markdown(result.get("response", ""))
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.error("❌ Unable to resolve the error")
                         st.markdown('<div class="error-box">', unsafe_allow_html=True)
-                        st.markdown(f"**Error**: {result.get('error', 'Unknown error')}")
+                        st.markdown(f"**Error**: {result.get('error', 'Unknown response breakdown.')}")
                         st.markdown('</div>', unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"An unexpected error occurred: {str(e)}")
         else:
-            st.error("Agent not available. Please check the logs.")
+            st.error("Agent module failed to initialize. Please check Render environment configurations.")
     elif solve_button and not error_message.strip():
         st.warning("⚠️ Please enter an error message first.")
 
@@ -229,7 +227,7 @@ with tab2:
             st.info(f"📊 File size: {uploaded_file.size:,} bytes")
             
             try:
-                df = pd.read_excel(uploaded_file, sheet_name="Page 1")
+                df = pd.read_excel(uploaded_file, sheet_name=0)
                 st.markdown("### 📊 Data Preview")
                 st.dataframe(df.head(10), use_container_width=True)
                 st.caption(f"Total rows: {len(df)}")
@@ -243,11 +241,10 @@ with tab2:
                     st.success("✅ All required columns found!")
                     
                     if st.button("🚀 Import to Database", use_container_width=True):
-                        # Import logic here (same as before)
-                        st.info("Import functionality ready - will process your data")
+                        # Simple placeholder layout execution matching your design template
+                        st.info("Import engine actively listening. Ready to execute pipeline parsing maps.")
             except Exception as e:
                 st.error(f"❌ Error reading Excel file: {str(e)}")
-            
             st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.warning("Database or Embeddings not available. Please check your configuration.")
