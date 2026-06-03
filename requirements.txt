@@ -9,9 +9,10 @@ pgvector==0.2.5
 psycopg2-binary==2.9.9
 sqlalchemy==2.0.23
 
-# AI/ML - Updated langchain-google-vertexai to newer version
-langchain==0.1.0
-langchain-google-vertexai==1.0.10
+# AI/ML - Compatible LangChain ecosystem
+langchain==0.2.0
+langchain-core==0.2.0
+langchain-google-vertexai==1.0.0
 google-cloud-aiplatform==1.71.1
 
 # Data processing
