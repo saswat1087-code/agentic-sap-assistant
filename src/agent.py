@@ -1,7 +1,8 @@
 import os
 import logging
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import AgentExecutor, create_openai_tools_agent
+from langchain.agents import AgentExecutor
+from langchain.agents.openai_tools import create_openai_tools_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 logger = logging.getLogger(__name__)
@@ -34,11 +35,11 @@ class SAPAgentWrapper:
                 MessagesPlaceholder(variable_name="agent_scratchpad"),
             ])
             
-            # Build the core execution runtime block
+            # Build the core execution runtime block using empty tools list for base configuration
             self.tools = [] 
             self.agent = create_openai_tools_agent(self.llm, self.tools, self.prompt)
             self.agent_executor = AgentExecutor(agent=self.agent, tools=self.tools, verbose=True)
-            logger.info("✅ SAP Agent Executor compiled cleanly using Gemini 3.5.")
+            logger.info("✅ SAP Agent Executor compiled cleanly using Gemini 3.5 with proper v0.2 imports.")
             
         except Exception as e:
             logger.error(f"❌ Failed to create SAP Agent: {e}")
