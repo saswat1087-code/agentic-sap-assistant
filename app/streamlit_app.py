@@ -11,7 +11,7 @@ from io import BytesIO
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Page configuration - MUST be the first Streamlit command
+# Page configuration - MUST be the first Streamlit command executed
 st.set_page_config(
     page_title="Agentic SAP Assistant",
     page_icon="🛠️",
@@ -19,10 +19,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Add parent directory to path
+# Add parent directory to system path to read modules from /src folder cleanly
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import modules with error handling
+# Import application modules safely with decoupled fallbacks
 try:
     from src.agent import agent
     from src.database import db
@@ -30,13 +30,13 @@ try:
     from src.parsers import parser
 except Exception as e:
     st.error(f"Failed to import modules: {e}")
-    logger.error(f"Import error: {e}")
+    logger.error(f"Critical System Import error: {e}")
     agent = None
     db = None
     embedder = None
     parser = None
 
-# Custom CSS
+# Custom CSS Styling Injection
 st.markdown("""
 <style>
     .main-header {
@@ -67,12 +67,14 @@ st.markdown("""
         padding: 1rem;
         border-radius: 10px;
         border-left: 5px solid #28a745;
+        color: #155724;
     }
     .error-box {
         background-color: #ffebee;
         padding: 1rem;
         border-radius: 10px;
         border-left: 5px solid #f44336;
+        color: #c62828;
     }
     .stButton > button {
         background-color: #4CAF50;
@@ -87,7 +89,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state variables cleanly
+# Initialize global session states cleanly
 if 'uploaded_data' not in st.session_state:
     st.session_state.uploaded_data = None
 if 'import_status' not in st.session_state:
@@ -95,30 +97,34 @@ if 'import_status' not in st.session_state:
 if 'txt_area_value' not in st.session_state:
     st.session_state.txt_area_value = ""
 
-# Sidebar
+# ==================== SIDEBAR COMPONENT ====================
 with st.sidebar:
     try:
         st.image("https://img.icons8.com/color/96/000000/sap.png", width=80)
-    except:
+    except Exception:
         st.markdown("## 🛠️")
     
     st.title("📊 Dashboard")
     
-    # Get statistics with error handling
+    # Render operational statistics safely
     if db:
         try:
             stats = db.get_statistics() if db else {"total_incidents": 0, "modules": {}}
             st.metric("Total Incidents", stats.get("total_incidents", 0))
             
             st.subheader("Module Distribution")
-            for module, count in stats.get("modules", {}).items():
-                st.metric(module, count)
+            modules_data = stats.get("modules", {})
+            if modules_data:
+                for module, count in modules_data.items():
+                    st.metric(module, count)
+            else:
+                st.caption("No modules indexed yet.")
         except Exception as e:
             st.error(f"Database connection error: {e}")
-            st.info("Please check your Supabase credentials")
+            st.info("Verify your database instance environment parameters.")
     else:
         st.warning("⚠️ Database not connected")
-        st.info("Add SUPABASE_URL and SUPABASE_KEY to environment variables")
+        st.info("Provide SUPABASE_URL and SUPABASE_KEY inside environment definitions.")
     
     st.markdown("---")
     
@@ -139,7 +145,7 @@ with st.sidebar:
     st.markdown("---")
     st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
-# Main content
+# ==================== MAIN PANEL HEADER ====================
 st.markdown("""
 <div class="main-header">
     <h1>🛠️ Agentic SAP Assistant</h1>
@@ -147,7 +153,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Create tabs
 tab1, tab2, tab3 = st.tabs(["🔍 Search Errors", "📤 Upload Data", "📊 Analytics"])
 
 # ==================== TAB 1: SEARCH ERRORS ====================
@@ -184,30 +189,31 @@ with tab1:
     with col2_btn:
         solve_button = st.button("🚀 Find Solution", use_container_width=True)
     
-    if solve_button and error_message.strip():
-        if agent:
-            with st.spinner("🤖 Agentic AI is analyzing your error..."):
-                try:
-                    result = agent.resolve_error(error_message, module_filter)
-                    
-                    if result and result.get("success"):
-                        st.success(f"✅ Resolution found (Module: {result.get('module', 'Unknown')})")
-                        st.markdown("---")
-                        st.markdown("## 💡 Resolution")
-                        st.markdown('<div class="resolution-box">', unsafe_allow_html=True)
-                        st.markdown(result.get("response", ""))
-                        st.markdown('</div>', unsafe_allow_html=True)
-                    else:
-                        st.error("❌ Unable to resolve the error")
-                        st.markdown('<div class="error-box">', unsafe_allow_html=True)
-                        st.markdown(f"**Error**: {result.get('error', 'Unknown response breakdown.')}")
-                        st.markdown('</div>', unsafe_allow_html=True)
-                except Exception as e:
-                    st.error(f"An unexpected error occurred: {str(e)}")
+    if solve_button:
+        if error_message.strip():
+            if agent:
+                with st.spinner("🤖 Agentic AI is analyzing your error..."):
+                    try:
+                        result = agent.resolve_error(error_message, module_filter)
+                        
+                        if result and result.get("success"):
+                            st.success(f"✅ Resolution found (Module: {result.get('module', 'Unknown')})")
+                            st.markdown("---")
+                            st.markdown("## 💡 Resolution")
+                            st.markdown('<div class="resolution-box">', unsafe_allow_html=True)
+                            st.markdown(result.get("response", ""))
+                            st.markdown('</div>', unsafe_allow_html=True)
+                        else:
+                            st.error("❌ Unable to resolve the error")
+                            st.markdown('<div class="error-box">', unsafe_allow_html=True)
+                            st.markdown(f"**Error**: {result.get('error', 'No context maps matched.')}")
+                            st.markdown('</div>', unsafe_allow_html=True)
+                    except Exception as e:
+                        st.error(f"An unexpected error occurred: {str(e)}")
+            else:
+                st.error("Agent system module initialization failure. Review server logs.")
         else:
-            st.error("Agent module failed to initialize. Please check Render environment configurations.")
-    elif solve_button and not error_message.strip():
-        st.warning("⚠️ Please enter an error message first.")
+            st.warning("⚠️ Please enter an error message first.")
 
 # ==================== TAB 2: UPLOAD DATA ====================
 with tab2:
@@ -227,10 +233,11 @@ with tab2:
             st.info(f"📊 File size: {uploaded_file.size:,} bytes")
             
             try:
+                # Read the first sheet dynamically by positional index
                 df = pd.read_excel(uploaded_file, sheet_name=0)
                 st.markdown("### 📊 Data Preview")
                 st.dataframe(df.head(10), use_container_width=True)
-                st.caption(f"Total rows: {len(df)}")
+                st.caption(f"Total rows discovered: {len(df)}")
                 
                 required_cols = ['Number', 'Short description', 'Resolution notes']
                 missing_cols = [col for col in required_cols if col not in df.columns]
@@ -240,14 +247,91 @@ with tab2:
                 else:
                     st.success("✅ All required columns found!")
                     
-                    if st.button("🚀 Import to Database", use_container_width=True):
-                        # Simple placeholder layout execution matching your design template
-                        st.info("Import engine actively listening. Ready to execute pipeline parsing maps.")
+                    col1_imp, col2_imp, col3_imp = st.columns([1, 1, 1])
+                    with col2_imp:
+                        if st.button("🚀 Import to Database", use_container_width=True):
+                            with st.spinner("Processing lines and computing vector layouts..."):
+                                success_count = 0
+                                error_count = 0
+                                
+                                progress_bar = st.progress(0)
+                                status_text = st.empty()
+                                
+                                for idx, row in df.iterrows():
+                                    status_text.text(f"Processing incident row {idx+1}/{len(df)}...")
+                                    try:
+                                        inc_number = row.get('Number', '')
+                                        short_desc = row.get('Short description', '')
+                                        description = row.get('Description', '')
+                                        resolution_notes = row.get('Resolution notes', '')
+                                        feature = row.get('Feature', '')
+                                        
+                                        if pd.isna(resolution_notes) or not str(resolution_notes).strip():
+                                            error_count += 1
+                                            continue
+                                        
+                                        resolution_text = str(resolution_notes)
+                                        root_cause = parser.extract_root_cause(resolution_text) or ""
+                                        action_taken = parser.extract_action_taken(resolution_text) or ""
+                                        transaction_codes = parser.extract_transaction_codes(resolution_text) or []
+                                        resolution_category = parser.extract_resolution_category(resolution_text) or ""
+                                        
+                                        text_to_embed = f"{short_desc} {description} {root_cause} {action_taken}"[:4000]
+                                        embedding = embedder.generate(text_to_embed)
+                                        module = parser.extract_module(f"{feature} {short_desc} {description}")
+                                        
+                                        incident_data = {
+                                            "inc_number": str(inc_number),
+                                            "module": module,
+                                            "error_text": str(short_desc)[:500],
+                                            "root_cause": root_cause[:2000],
+                                            "resolution": action_taken[:3000],
+                                            "transaction_code": ", ".join(transaction_codes[:5]),
+                                            "resolution_category": resolution_category,
+                                            "embedding": embedding
+                                        }
+                                        
+                                        if db.insert_incident(incident_data):
+                                            success_count += 1
+                                        else:
+                                            error_count += 1
+                                    except Exception as ex_row:
+                                        error_count += 1
+                                        logger.error(f"Row iteration {idx} faulted: {ex_row}")
+                                    
+                                    progress_bar.progress((idx + 1) / len(df))
+                                
+                                status_text.empty()
+                                st.session_state.import_status = f"Successfully imported {success_count} incidents! Errors: {error_count}"
+                                st.balloons()
+                                st.rerun()
             except Exception as e:
-                st.error(f"❌ Error reading Excel file: {str(e)}")
+                st.error(f"❌ Error reading Excel file structures: {str(e)}")
             st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.warning("Database or Embeddings not available. Please check your configuration.")
+
+    st.markdown("### 📥 Need a template?")
+    if st.button("Download Excel Template"):
+        template_df = pd.DataFrame({
+            'Number': ['INC001', 'INC002'],
+            'Short description': ['Error message sample 1', 'Error message sample 2'],
+            'Description': ['Detailed log context here 1', 'Detailed log context here 2'],
+            'Resolution notes': ['Root Cause: X\nAction Taken: Y', 'Root Cause: A\nAction Taken: B'],
+            'Feature': ['EWM', 'QM']
+        })
+        
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            template_df.to_excel(writer, sheet_name='Page 1', index=False)
+        buffer.seek(0)
+        
+        st.download_button(
+            label="Download Template.xlsx",
+            data=buffer,
+            file_name="sap_incidents_template.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
 # ==================== TAB 3: ANALYTICS ====================
 with tab3:
@@ -260,21 +344,44 @@ with tab3:
             
             with col1:
                 st.markdown("### 📈 Module Distribution")
-                if stats.get("modules"):
+                if stats and stats.get("modules"):
                     for module, count in stats["modules"].items():
-                        st.metric(module, count)
+                        st.metric(label=module, value=count)
                 else:
-                    st.info("No data available yet. Upload some incidents first!")
+                    st.info("No structured metrics available. Upload standard dataset arrays first.")
             
             with col2:
                 st.markdown("### 🔧 Top Transaction Codes")
-                st.info("Upload data to see transaction code analytics")
+                try:
+                    top_transactions = db.get_top_transactions(10) if hasattr(db, 'get_top_transactions') else []
+                except Exception:
+                    top_transactions = []
+                
+                if top_transactions:
+                    for t in top_transactions[:5]:
+                        st.metric(label=t.get('transaction', 'Unknown T-Code'), value=t.get('count', 0))
+                else:
+                    st.info("No transaction tracking distributions extracted yet.")
+                    
+            st.markdown("---")
+            st.markdown("### 📅 Recent Activity (Past 30 Days)")
+            try:
+                recent = db.get_recent_incidents(days=30, limit=10) if hasattr(db, 'get_recent_incidents') else []
+            except Exception:
+                recent = []
+                
+            if recent and len(recent) > 0:
+                recent_df = pd.DataFrame(recent)
+                target_cols = [col for col in ['inc_number', 'module', 'created_at'] if col in recent_df.columns]
+                st.dataframe(recent_df[target_cols], use_container_width=True)
+            else:
+                st.info("No database activity records discovered in specified range.")
         except Exception as e:
-            st.error(f"Error loading statistics: {e}")
+            st.error(f"Error loading system statistics: {e}")
     else:
         st.warning("Database not connected")
 
-# Footer
+# Global Application Footer
 st.markdown("---")
 st.markdown(
     "<center><small>Powered by Google Gemini 1.5 Pro | Built with Streamlit | Data from SAP Incidents Database</small></center>",
