@@ -13,7 +13,7 @@ class GeminiEmbedderWrapper:
             try:
                 # Initialize the modern native Google GenAI Embeddings client
                 self.client = GoogleGenerativeAIEmbeddings(
-                    model="models/embedding-001",
+                    model="text-embedding-004",
                     google_api_key=self.api_key
                 )
                 logger.info("✅ Gemini Embeddings client initialized successfully.")
