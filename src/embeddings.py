@@ -11,9 +11,9 @@ class GeminiEmbedderWrapper:
         
         if self.api_key:
             try:
-                # Initialize using the strict full path string that works flawlessly across legacy and modern endpoints
+                # Passing the raw model name string clears internal SDK routing issues
                 self.client = GoogleGenerativeAIEmbeddings(
-                    model="models/embedding-001",
+                    model="embedding-001",
                     google_api_key=self.api_key
                 )
                 logger.info("✅ Gemini Embeddings client initialized successfully.")
