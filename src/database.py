@@ -1,6 +1,6 @@
 """
 Supabase database client for Agentic SAP Assistant
-Handles vector similarity search, CRUD operations, and statistics
+Handles vector similarity search, Upsert (CRUD) operations, and statistics
 """
 
 from supabase import create_client, Client
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class SupabaseClient:
-    """Supabase database client with vector search capabilities"""
+    """Supabase database client with vector search and upsert capabilities"""
     
     def __init__(self):
         """Initialize Supabase client"""
@@ -23,7 +23,7 @@ class SupabaseClient:
                 settings.supabase_key
             )
             logger.info("✅ Supabase client initialized successfully")
-            logger.info(f"   URL: {settings.supabase_url}")
+            logger.info(f"    URL: {settings.supabase_url}")
         except Exception as e:
             logger.error(f"❌ Failed to initialize Supabase client: {e}")
             raise
@@ -157,11 +157,12 @@ class SupabaseClient:
             logger.error(f"❌ Error searching by module: {e}")
             return []
     
-    # ==================== INSERT METHODS ====================
+    # ==================== INSERT / UPSERT METHODS ====================
     
     def insert_incident(self, incident_data: Dict[str, Any]) -> bool:
         """
-        Insert a new incident into the database
+        Insert or Update an incident into the database (Upsert)
+        Resolves duplicate primary key crashes seamlessly using on_conflict.
         
         Args:
             incident_data: Dictionary with incident fields
@@ -170,32 +171,38 @@ class SupabaseClient:
             True if successful, False otherwise
         """
         try:
-            # Ensure required fields are present
+            # Ensure required fields are present before trying to process
             required_fields = ['inc_number', 'error_text', 'embedding']
             for field in required_fields:
                 if field not in incident_data:
                     logger.error(f"Missing required field: {field}")
                     return False
             
-            # Add timestamps
-            incident_data['created_at'] = datetime.now().isoformat()
+            # Enforce matching update/creation timestamps
+            now_iso = datetime.now().isoformat()
+            if 'created_at' not in incident_data:
+                incident_data['created_at'] = now_iso
+            incident_data['updated_at'] = now_iso
             
-            response = self.client.table("sap_kb").insert(incident_data).execute()
+            # Swapping .insert() to .upsert() protects against unique constraint collisions
+            response = self.client.table("sap_kb")\
+                .upsert(incident_data, on_conflict="inc_number")\
+                .execute()
             
             if response.data:
-                logger.info(f"✅ Inserted incident: {incident_data.get('inc_number')}")
+                logger.info(f"✅ Upserted incident record safely: {incident_data.get('inc_number')}")
                 return True
             else:
-                logger.error("❌ Insert returned no data")
+                logger.error("❌ Database layer returned no tracking confirmation data data.")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Error inserting incident: {e}")
+            logger.error(f"❌ Error performing upsert on incident record: {e}")
             return False
     
     def insert_batch(self, incidents: List[Dict[str, Any]]) -> Dict[str, int]:
         """
-        Insert multiple incidents in batch
+        Insert multiple incidents in batch using the continuous safe upsert method
         
         Args:
             incidents: List of incident dictionaries
@@ -212,7 +219,7 @@ class SupabaseClient:
             else:
                 error_count += 1
         
-        logger.info(f"📊 Batch insert completed: {success_count} success, {error_count} errors")
+        logger.info(f"📊 Batch execution sequence processed: {success_count} success, {error_count} errors")
         return {"success": success_count, "errors": error_count}
     
     # ==================== UPDATE METHODS ====================
@@ -233,7 +240,6 @@ class SupabaseClient:
             True if successful, False otherwise
         """
         try:
-            # Add updated timestamp
             update_data['updated_at'] = datetime.now().isoformat()
             
             response = self.client.table("sap_kb")\
@@ -309,7 +315,6 @@ class SupabaseClient:
             Number of incidents deleted
         """
         try:
-            # First get count
             incidents = self.search_by_module(module, limit=1000)
             count = len(incidents)
             
@@ -317,7 +322,6 @@ class SupabaseClient:
                 logger.info(f"No incidents found for module: {module}")
                 return 0
             
-            # Delete them
             for incident in incidents:
                 self.delete_incident(incident.get('inc_number'))
             
@@ -416,28 +420,28 @@ class SupabaseClient:
                 .execute()
             total_incidents = total_response.count if total_response.count else 0
             
-            # Get module distribution
+            # Get data rows to parse analytics distribution structures
             modules_response = self.client.table("sap_kb")\
-                .select("module")\
+                .select("module, resolution_category")\
                 .execute()
             
             module_counts = {}
             resolution_counts = {}
             
-            for item in modules_response.data:
-                module = item.get("module", "Unknown")
-                module_counts[module] = module_counts.get(module, 0) + 1
-                
-                resolution = item.get("resolution_category", "Unknown")
-                resolution_counts[resolution] = resolution_counts.get(resolution, 0) + 1
+            if modules_response.data:
+                for item in modules_response.data:
+                    module = item.get("module", "Unknown") or "Unknown"
+                    module_counts[module] = module_counts.get(module, 0) + 1
+                    
+                    resolution = item.get("resolution_category", "Unknown") or "Unknown"
+                    resolution_counts[resolution] = resolution_counts.get(resolution, 0) + 1
             
-            # Get date range
+            # Get date range bounds cleanly
             date_response = self.client.table("sap_kb")\
                 .select("created_at")\
                 .order("created_at", desc=False)\
                 .limit(1)\
                 .execute()
-            
             oldest_date = date_response.data[0]['created_at'] if date_response.data else None
             
             newest_response = self.client.table("sap_kb")\
@@ -445,7 +449,6 @@ class SupabaseClient:
                 .order("created_at", desc=True)\
                 .limit(1)\
                 .execute()
-            
             newest_date = newest_response.data[0]['created_at'] if newest_response.data else None
             
             return {
@@ -482,25 +485,24 @@ class SupabaseClient:
         if not incidents:
             return {"module": module, "count": 0}
         
-        # Count resolution categories
         resolution_counts = {}
         for inc in incidents:
-            resolution = inc.get("resolution_category", "Unknown")
+            resolution = inc.get("resolution_category", "Unknown") or "Unknown"
             resolution_counts[resolution] = resolution_counts.get(resolution, 0) + 1
         
-        # Get unique transaction codes
         transactions = set()
         for inc in incidents:
             tcode = inc.get("transaction_code")
             if tcode:
-                for t in tcode.split(", "):
-                    transactions.add(t)
+                for t in str(tcode).split(", "):
+                    if t.strip():
+                        transactions.add(t.strip())
         
         return {
             "module": module,
             "count": len(incidents),
             "resolution_categories": resolution_counts,
-            "unique_transactions": list(transactions)[:20]  # Top 20
+            "unique_transactions": list(transactions)[:20]
         }
     
     # ==================== UTILITY METHODS ====================
@@ -513,7 +515,7 @@ class SupabaseClient:
             True if connection is healthy, False otherwise
         """
         try:
-            response = self.client.table("sap_kb")\
+            self.client.table("sap_kb")\
                 .select("count", count="exact")\
                 .limit(1)\
                 .execute()
@@ -557,7 +559,6 @@ class SupabaseClient:
             List of recent incidents
         """
         try:
-            # Calculate date threshold
             from datetime import timedelta
             threshold = (datetime.now() - timedelta(days=days)).isoformat()
             
@@ -589,15 +590,16 @@ class SupabaseClient:
                 .select("transaction_code")\
                 .execute()
             
-            # Count occurrences
             transaction_counts = {}
-            for item in response.data:
-                tcode = item.get("transaction_code")
-                if tcode:
-                    for t in tcode.split(", "):
-                        transaction_counts[t] = transaction_counts.get(t, 0) + 1
+            if response.data:
+                for item in response.data:
+                    tcode = item.get("transaction_code")
+                    if tcode:
+                        for t in str(tcode).split(", "):
+                            t_clean = t.strip()
+                            if t_clean:
+                                transaction_counts[t_clean] = transaction_counts.get(t_clean, 0) + 1
             
-            # Sort by count
             sorted_transactions = sorted(
                 transaction_counts.items(),
                 key=lambda x: x[1],
@@ -625,9 +627,9 @@ class SupabaseClient:
             return False
         
         try:
-            response = self.client.table("sap_kb")\
+            self.client.table("sap_kb")\
                 .delete()\
-                .neq("id", "00000000-0000-0000-0000-000000000000")\
+                .neq("inc_number", "FALLBACK_DELETE_BLOCK_TOKEN")\
                 .execute()
             
             logger.warning("🗑️ All incidents deleted from database")
@@ -640,7 +642,6 @@ class SupabaseClient:
 
 # ==================== SINGLETON INSTANCE ====================
 
-# Create a single instance to be used across the application
 try:
     db = SupabaseClient()
     logger.info("✅ Database client ready")
