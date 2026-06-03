@@ -1,0 +1,42 @@
+# Core dependencies
+python-dotenv==1.0.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Database
+supabase==2.0.4
+pgvector==0.2.5
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.23
+
+# AI/ML
+langchain==0.1.0
+langchain-google-vertexai==0.0.6
+langchain-community==0.0.10
+google-cloud-aiplatform==1.38.0
+vertexai==1.38.0
+openai==1.6.1
+
+# Data processing
+pandas==2.1.4
+openpyxl==3.1.2
+numpy==1.24.3
+
+# Web framework
+streamlit==1.29.0
+fastapi==0.104.1
+uvicorn==0.24.0
+
+# Utilities
+tiktoken==0.5.2
+tenacity==8.2.3
+rich==13.7.0
+click==8.1.7
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+black==23.12.1
+isort==5.13.2
+mypy==1.8.0
